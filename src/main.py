@@ -6,8 +6,32 @@ TOKEN = 'ODk1MDc3Mzk5NzI3ODQ1Mzc2.YVzTyQ.D55M2yT1Z7Nt0QpTl0ZbixIz0yA'
 client = discord.Client()
 
 #Array party
-party = []
-
+party = {}
+"""
+idParty:
+{
+    idPlayer:
+    {
+        nickname:pippo,
+        boss:True
+    },
+    idPlayer:
+    {
+        nickname:pippa,
+        boss:False
+    },
+    ...
+},
+idParty:
+...
+"""
+#index
+index = {}
+"""
+playerId:PartyId,
+playerId:PartyId,
+...
+"""
 @client.event
 async def on_ready():
     print(f'{client.user} has connected to Discord!')
@@ -19,7 +43,7 @@ async def on_message(message):
     if message.content.find("!hanged") >= 0:
         #create new party
         if message.content.find("new-game") > 0:
-            if await checkPlayer(message.author.discriminator) == False:
+            if await checkPlayer(message.author.id) == False:
                 while True:
                     id = random.randrange(0,999999)
                     if await checkIdParty(id) == False:
@@ -30,49 +54,85 @@ async def on_message(message):
                 await message.channel.send("you are already in a party")
 
         #join party
-        if message.content.find("join") > 0:
+        elif message.content.find("join") > 0:
             #get id by message
             id = int(message.content.split("join", 1)[1])
 
             #check
-            if await checkPlayer(id, message.author.discriminator) == False:
-                await message.channel.send("you just joined the party")
+            if await checkIdParty(id) == True:
+                if await checkPlayerFromParty(message.author.id, id) == False:
+                    await message.channel.send("you just joined the party")
+                else:
+                    await message.channel.send("you are already in a party")
             else:
-                await message.channel.send("you are already in a party")
+                await message.channel.send("Id party not exsit")
+        
+        #leave party
+        elif message.content.find("leave") > 0:
+            #get position of party
+            id = await getIdPartyFromIdPlayer(message.author.id)
+            if id == None:
+                await message.channel.send("You aren't joined in party")
+            else:
+                #leave party
+                await leaveIdPlayerFromPosParty(message.author.id, id)
+                await message.channel.send("Okay bye bye")
+        
+        #list player in party
+        elif message.content.find("list") > 0:
+            id = await getIdPartyFromIdPlayer(message.author.id)
+            if id == None:
+                await message.channel.send("You aren't joined in party")
+            else:
+                messageList = "Party ID: "+str(id)+"\n "
+                messageList += "Players are:\n "
+                i=0
+                for player in party[id]:
+                    i += 1
+                    messageList += str(i)+" - "+party[id][player]['nickname']
+                await message.channel.send(messageList)
+
 #add party
 async def CreateParty(idParty, playerAdmin):
-    party.append({
-        "id":idParty,
-        "players":[{
-            "id":playerAdmin.discriminator,
-            "nickname":playerAdmin.display_name
-        }]
-    })
+    party[idParty] = {
+        playerAdmin.id:{
+            "nickname":playerAdmin.display_name,
+            "boss":True
+        }
+    }
+    index[playerAdmin.id] = idParty
+async def getIdPartyFromIdPlayer(idPlayer):
+    return index.get(idPlayer)
 
-#check exists id party
-async def checkIdParty(idCheck):
+#check exist id party
+async def checkIdParty(idParty):
     if len(party) > 0:
-        for pos in party:
-            if pos['id'] == idCheck:
-                return True
+        if party.get(idParty) != None:
+            return True
     return False
 
 #check with specific id of party
-async def checkPlayer(idParty, idPlayer):
+async def checkPlayerFromParty(idPlayer, idParty):
     if len(party) > 0:
-        for pos in party:
-            if pos['id'] == idParty:
-                for players in pos['players']:
-                    if players['id'] == idPlayer:
-                        return True
+        value = index.get(idPlayer)
+        if value != None:
+            if value == idParty:
+                return True
     return False
 
 #check player in general party
 async def checkPlayer(idPlayer):
     if len(party) > 0:
-        for pos in party:
-            for players in pos['players']:
-                if players['id'] == idPlayer:
-                    return True
+        if index.get(idPlayer) != None:
+            return True
     return False
+
+#leave player by party
+async def leaveIdPlayerFromPosParty(idPlayer, idParty):
+    index.pop(idPlayer, None)
+    if party[idParty][idPlayer].get("boss") == True:
+        party.pop(idParty)
+    else:
+        party[idParty].pop(idPlayer, None)
+
 client.run(TOKEN)
