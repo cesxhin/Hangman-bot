@@ -94,7 +94,7 @@ async def on_message(message):
                 i=0
                 for player in party[id]["players"]:
                     i += 1
-                    messageList += str(i)+" - "+party[id]["players"][player]['nickname']
+                    messageList += str(i)+" - "+party[id]["players"][player]['nickname']+"\n"
                 await message.channel.send(messageList)
         
         #start game
@@ -127,8 +127,10 @@ async def on_message(message):
                 await message.channel.send("Player not exist")
 
         elif message.content.find("answare-single") > 0:
+            #get answare with remove withspace
             answare = message.content.split("answare-single", 1)[1].strip()
             playerId = message.author.id
+            #check player
             if index.get(playerId) != None:
                 partyId = index.get(playerId)
                 if party[partyId]["players"][playerId]["myturn"] == True:
@@ -183,13 +185,11 @@ async def getIdPartyFromIdPlayer(idPlayer):
 
 #join party
 async def JoinParty(player, idParty):
-    party[idParty]["players"]={
-        player.id:{
+    party[idParty]["players"][player.id]={
             "nickname":player.display_name,
             "boss":False,
             "myturn":False
         }
-    }
     index[player.id] = idParty
 
 #check exist id party
