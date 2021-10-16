@@ -1,15 +1,23 @@
 from typing import Tuple
-import discord, random
+import discord, random, json, os
 
 TOKEN = 'ODk1MDc3Mzk5NzI3ODQ1Mzc2.YVzTyQ.D55M2yT1Z7Nt0QpTl0ZbixIz0yA'
 
 client = discord.Client()
-
+#const
+BASELIFE = 5
+CURRENTPATH = os.getcwd()
 #Array party
 party = {}
 """
 idParty:
-{
+{   "start":False,
+    "finish":False,
+    "pharse":None,
+    "word":None,
+    "whiteword":[],
+    "keys":[],
+    "showword":None,
     "players":
     [
         idPlayer:
@@ -20,7 +28,9 @@ idParty:
         idPlayer:
         {
             nickname:pippa,
-            boss:False
+            boss:False,
+            "myturn":False,
+            "life":5
         },
         ...
     ]
@@ -46,7 +56,7 @@ async def on_message(message):
         return
     if message.content.find("!hanged") >= 0:
         #create new party
-        if message.content.find("new-game") > 0:
+        if message.content.find("new-party") > 0:
             if await checkPlayer(message.author.id) == False:
                 while True:
                     id = random.randrange(0,999999)
@@ -94,29 +104,44 @@ async def on_message(message):
         
         #start game
         elif message.content.find("start") > 0:
+            bodyMessage = ""
             idPlayer = message.author.id
             #check player id
             if (index.get(idPlayer) != None):
                 idParty = index[idPlayer]
                 #check boss
                 if party[idParty]["players"][idPlayer]["boss"] == True:
+                    if party[idParty]["finish"] == True:
+                        await resetParty(idParty)
                     if party[idParty]["start"] == False:
                         party[idParty]["start"] = True
                         randomPlayer = randomStartPlayer(idParty)
                         party[idParty]["players"][randomPlayer]["myturn"] = True
-                        await message.channel.send("Player start is "+party[idParty]["players"][randomPlayer]["nickname"])
+                        bodyMessage += "Player start is "+party[idParty]["players"][randomPlayer]["nickname"]+"\n"
                         #print lsit
                         messageList = await getListPlayer(idParty)
-                        await message.channel.send(messageList)
+                        bodyMessage += messageList +"\n"
                         # set game question
-                        party[idParty]["pharse"]="E\' un animale domestico"
-                        party[idParty]["word"]="gatto"
-                        party[idParty]["keys"]=initialKeys(party[idParty]["word"])
-                        party[idParty]["showword"]=replaceHideWord(party[idParty]["word"])
+                        with open(CURRENTPATH+'\\src\\list_question.json', encoding='utf-8') as json_file:
+                            data = json.load(json_file)
+
+                            #get random question
+                            while True:
+                                pos = random.randrange(0,len(data)-1)
+                                #check equal question of the before
+                                if data[pos]["answare"] == party[idParty]["word"]:
+                                    continue
+                                #set
+                                party[idParty]["pharse"]=data[pos]["question"]
+                                party[idParty]["word"]=data[pos]["answare"]
+                                party[idParty]["keys"]=initialKeys(party[idParty]["word"])
+                                party[idParty]["showword"]=replaceHideWord(party[idParty]["word"])
+                                break
                         #
-                        await message.channel.send(party[idParty]["pharse"])
-                        await message.channel.send(party[idParty]["showword"])
-                        await message.channel.send(party[idParty]["keys"])
+                        bodyMessage += party[idParty]["pharse"] + "\n"
+                        bodyMessage += party[idParty]["showword"] + "\n"
+                        bodyMessage += str(party[idParty]["keys"])
+                        await message.channel.send(bodyMessage)
                     else:
                         await message.channel.send("The party has already started!")
                 else:
@@ -124,60 +149,93 @@ async def on_message(message):
             else:
                 await message.channel.send("Player not exist")
 
-        elif message.content.find("answare") > 0:
+        elif message.content.find("answ") > 0:
+            bodyMessage = ""
             idPlayer = message.author.id
             #check player
             if index.get(idPlayer) != None:
                 idParty = index.get(idPlayer)
                 if party[idParty]["players"][idPlayer]["myturn"] == True:
-                    if message.content.find("-single") > 0:
+                    if party[idParty]["finish"] == True:
+                        await message.channel.send("This round is finish")
+                        return
+                    
+                    #single char
+                    if message.content.find("char") > 0:
                         #get answare with remove withspace
-                        answare = message.content.split("answare-single", 1)[1].strip()
+                        answare = message.content.split("char", 1)[1].strip()
                         if len(answare) == 1:
                             if answare in party[idParty]["keys"]:
                                 #check answare in word
                                 if answare in party[idParty]["word"]:
                                     party[idParty]["whiteword"].append(answare)
-                                    party[idParty]["showword"] = showWord(answare, idParty)
-                                    await message.channel.send("You are lucky!")
+                                    party[idParty]["showword"] = showWord(idParty)
+                                    bodyMessage += "You are lucky!" +"\n"
                                 else:
                                     #remove life
                                     party[idParty]["players"][idPlayer]["life"] -= 1
-                                    await message.channel.send("You were wrong!")
-
-                                if checkDeathAll(idParty) == True:
-                                    await message.channel.send("Game Over")
-                                else:
-                                    if party[idParty]["word"] == party[idParty]["showword"]:
-                                        await message.channel.send("you are win!")
-                                        return
-                                    #remove key
-                                    removeKeys(answare, idParty)
-                                    #next turn
-                                    idPlayerTurn = nextTurn(idParty, idPlayer)
-                                    await message.channel.send(party[idParty]["players"][idPlayerTurn]["nickname"]+" it's up to you")
-                                    #print lsit
-                                    messageList = await getListPlayer(idParty)
-                                    await message.channel.send(messageList)
-                                    #print question
-                                    await message.channel.send(party[idParty]["pharse"])
-                                    await message.channel.send(party[idParty]["showword"])
-                                    await message.channel.send(party[idParty]["keys"])
+                                    bodyMessage += "You were wrong!" + "\n"
                             else:
-                                await message.channel.send("The char not exist")
+                                 bodyMessage += "The char not exist" + "\n"
                         else:
-                            await message.channel.send("Not correct format answare")
-                    elif message.content.find("-word") > 0:
-                        print()
+                            bodyMessage += "Not correct format answare" + "\n"
+
+                    #word
+                    elif message.content.find("word") > 0:
+                        answare = message.content.split("word", 1)[1].strip()
+                        if len(answare) > 1:
+                            if answare in party[idParty]["word"]:
+                                party[idParty]["showword"] = answare
+                                bodyMessage += "You are lucky!"+ "\n"
+                            else:
+                                bodyMessage += "You were wrong!"+ "\n"
+                                party[idParty]["players"][idPlayer]["life"] -= 1
+                                return
+
+                    #set party
+                    if checkDeathAll(idParty) == True:
+                        party[idParty]["finish"]=True
+                        bodyMessage += "Game Over"+ "\n"
+                        await message.channel.send(bodyMessage)
+                        return
+                    else:
+                        if party[idParty]["word"] == party[idParty]["showword"]:
+                            party[idParty]["finish"]=True
+                            bodyMessage += "you are win!"+ "\n"
+                            await message.channel.send(bodyMessage)
+                            return
+                        #remove key
+                        removeKeys(answare, idParty)
+                        #next turn
+                        idPlayerTurn = nextTurn(idParty, idPlayer)
+                        bodyMessage += party[idParty]["players"][idPlayerTurn]["nickname"]+" it's up to you" + "\n"
+                        #print lsit
+                        messageList = await getListPlayer(idParty)
+                        bodyMessage += messageList + "\n"
+                        #print question
+                        bodyMessage += party[idParty]["pharse"] + "\n"
+                        bodyMessage += party[idParty]["showword"] + "\n"
+                        bodyMessage += str(party[idParty]["keys"])
+                        await message.channel.send(bodyMessage)
                 else:
                     await message.channel.send("Not is your turn! await.")
             else:
                 await message.channel.send("Player not exist")
 
+        elif message.content.find("help") > 0:
+            bodyMessage = "**new-party** --> crea nuovo party per invitare i tuoi amici per poi giocare insieme!\n"
+            bodyMessage += "**join** [id] --> entri con un id del party da qualcuno che ti ha invitato\n"
+            bodyMessage += "**list** --> vedi tutti i giocatori presenti nel party\n"
+            bodyMessage += "* **start** --> inizi/ricomincia una nuova partita\n"
+            bodyMessage += "**answ** <*char*/*word*> [your answare] --> rispondi con due modalità possibili\n"
+            bodyMessage += "\n* solo chi ha creato party può eseguire questo commando\n"
+            await message.channel.send(bodyMessage)
+
 #add party
 async def CreateParty(idParty, playerAdmin):
     party[idParty] = {
         "start":False,
+        "finish":False,
         "pharse":None,
         "word":None,
         "whiteword":[],
@@ -189,7 +247,7 @@ async def CreateParty(idParty, playerAdmin):
                 "nickname":playerAdmin.display_name,
                 "boss":True,
                 "myturn":False,
-                "life":5
+                "life":BASELIFE
             }
         }
     }
@@ -205,7 +263,7 @@ async def JoinParty(player, idParty):
             "nickname":player.display_name,
             "boss":False,
             "myturn":False,
-            "life":5
+            "life":BASELIFE
         }
     index[player.id] = idParty
 
@@ -232,6 +290,7 @@ async def checkPlayer(idPlayer):
             return True
     return False
 
+#get list player by idParty
 async def getListPlayer(idParty):
     messageList = "Party ID: "+str(idParty)+"\n "
     messageList += "Players are:\n "
@@ -245,6 +304,7 @@ async def getListPlayer(idParty):
             messageList += "💔 "
         messageList += "\n"
     return messageList
+
 #leave player by party
 async def leaveIdPlayerFromPosParty(idPlayer, idParty):
     index.pop(idPlayer, None)
@@ -264,12 +324,14 @@ def replaceHideWord(word):
         wordHide += "\_ "
     return wordHide
 
+#check exists key in list
 def checkList(list, key):
     for word in list:
         if word == key:
             return True
     return False
 
+#set list word for game
 def initialKeys(word):
     keys = []
     alphabetical = ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z']
@@ -297,7 +359,8 @@ def initialKeys(word):
                 break
     return keys
 
-def showWord(answare, idParty):
+#show only choose by players
+def showWord(idParty):
     word = ""
     for key in party[idParty]["word"]:
         if key in party[idParty]["whiteword"]:
@@ -315,6 +378,7 @@ def removeKeys(answare, idParty):
             keysCopy.append(key)
     party[idParty]["keys"] = keysCopy
 
+#next turn of the player
 def nextTurn(idParty, idPlayer):
     i = list(party[idParty]["players"]).index(idPlayer)
     while True:
@@ -332,9 +396,20 @@ def nextTurn(idParty, idPlayer):
     party[idParty]["players"][playerIdChange]["myturn"] = True
     return playerIdChange
 
+#check if death all party
 def checkDeathAll(idParty):
     for player in party[idParty]["players"]:
         if party[idParty]["players"][player]["life"] > 0:
             return False
     return True
+
+#reset party
+async def resetParty(idParty):
+    #reset player
+    for player in party[idParty]["players"]:
+        party[idParty]["players"][player]["life"] = BASELIFE
+        party[idParty]["players"][player]["myturn"] = False
+    party[idParty]["finish"]=False
+    party[idParty]["start"]=False
+
 client.run(TOKEN)
