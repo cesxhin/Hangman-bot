@@ -1,7 +1,8 @@
-from typing import Tuple
 import discord, random, json, os
+from dotenv import load_dotenv
 
-TOKEN = 'ODk1MDc3Mzk5NzI3ODQ1Mzc2.YVzTyQ.D55M2yT1Z7Nt0QpTl0ZbixIz0yA'
+load_dotenv()
+TOKEN = os.getenv("TOKEN")
 
 client = discord.Client()
 #const
@@ -54,7 +55,7 @@ async def on_ready():
 async def on_message(message):
     if message.author == client.user:
         return
-    if message.content.find("!hanged") >= 0:
+    if message.content.find("!h") >= 0:
         #create new party
         if message.content.find("new-party") > 0:
             if await checkPlayer(message.author.id) == False:
