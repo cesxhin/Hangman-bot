@@ -123,7 +123,7 @@ async def on_message(message):
                         messageList = await getListPlayer(idParty)
                         bodyMessage += messageList +"\n"
                         # set game question
-                        with open(CURRENTPATH+'\\src\\list_question.json', encoding='utf-8') as json_file:
+                        with open(CURRENTPATH+'\\src\\list_questions.json', encoding='utf-8') as json_file:
                             data = json.load(json_file)
 
                             #get random question
